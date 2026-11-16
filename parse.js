@@ -1229,13 +1229,20 @@ function blockParse(lines, start, end, top, out, ctx, inBlockquote, isDoc, info)
       // indent compensation (marked's indentCodeCompensation): slice
       // CHARACTERS, not columns — the fence's leading-whitespace string
       // length (in chars) is removed from each content line's leading
-      // whitespace (also in chars). A tab counts as 1 char, so it is
-      // preserved rather than expanded when it survives the slice.
-      const [, fenceWsLen] = lineIndent(line);
-      const stripped = body.map((l) => {
-        const [, idxL] = lineIndent(l);
-        return l.slice(Math.min(idxL, fenceWsLen));
-      });
+      // whitespace (also in chars). NOTE: marked's regex is /^(\s+)(?:```)/
+      // so it ONLY applies to backtick fences; a tilde fence gets NO
+      // compensation at all (content keeps its indent after container
+      // stripping).
+      let stripped;
+      if (fch === '`') {
+        const [, fenceWsLen] = lineIndent(line);
+        stripped = body.map((l) => {
+          const [, idxL] = lineIndent(l);
+          return l.slice(Math.min(idxL, fenceWsLen));
+        });
+      } else {
+        stripped = body;
+      }
       let text = stripped.join('\n');
       // a trailing newline is added only when the last content line is not
       // blank (marked's fences regex consumes the newline before the
