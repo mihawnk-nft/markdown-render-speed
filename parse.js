@@ -1226,9 +1226,16 @@ function blockParse(lines, start, end, top, out, ctx, inBlockquote, isDoc, info)
         j++;
       }
       void closed;
-      // indent compensation: remove up to the fence's indent from each line
-      const fenceIndent = ind0;
-      const stripped = body.map((l) => stripIndent(l, fenceIndent));
+      // indent compensation (marked's indentCodeCompensation): slice
+      // CHARACTERS, not columns — the fence's leading-whitespace string
+      // length (in chars) is removed from each content line's leading
+      // whitespace (also in chars). A tab counts as 1 char, so it is
+      // preserved rather than expanded when it survives the slice.
+      const [, fenceWsLen] = lineIndent(line);
+      const stripped = body.map((l) => {
+        const [, idxL] = lineIndent(l);
+        return l.slice(Math.min(idxL, fenceWsLen));
+      });
       let text = stripped.join('\n');
       // a trailing newline is added only when the last content line is not
       // blank (marked's fences regex consumes the newline before the
@@ -1901,10 +1908,14 @@ function parseList(lines, i, end, ctx) {
     items.push({ contentLines, endedWithBlank });
     j = k;
     // after the item, a blank line before the next item makes the list loose
+    // — but ONLY when the next item continues THIS list (same type and
+    // marker); a blank line followed by a different list does not loosen
+    // this one (its last item's trailing blank is trimmed, marked rule).
     if (j < end && isBlankLine(lines[j])) {
       let m2 = j + 1;
       while (m2 < end && isBlankLine(lines[m2])) m2++;
-      if (m2 < end && listMarker(lines[m2])) {
+      const nm = m2 < end ? listMarker(lines[m2]) : null;
+      if (nm && nm[2] === isOrdered && (isOrdered ? nm[0].slice(-1) === bullet.slice(-1) : nm[0] === bullet) && !isHrLine(lines[m2])) {
         loose = true;
         j = m2;
         continue;
